@@ -9,9 +9,52 @@
 # "Soffos Dev": a separate app with its own bundle ID, icon, settings and
 # Spotify sign-in that runs alongside the installed release and never updates.
 #
-# SIGNING_IDENTITY names the code signing certificate to use; without it the
-# app is signed ad hoc.
+# SIGNING_IDENTITY names the code signing certificate to use. Without it, dev
+# builds are signed with "Soffos Dev Signing", a self-signed certificate this
+# script creates on first use, so every rebuild keeps the Local Network access
+# granted to the previous one. Release builds without it are signed ad hoc.
 set -e
+
+DEV_SIGNING_IDENTITY="Soffos Dev Signing"
+# The dev certificate lives in a keychain of its own with a fixed password, so
+# the script can unlock it and let codesign use the key without a password
+# dialog. The password guards only this self-signed dev key.
+DEV_KEYCHAIN="${HOME}/Library/Keychains/soffos-dev.keychain-db"
+DEV_KEYCHAIN_PASSWORD="soffos"
+
+# Creates the dev keychain with the dev signing certificate and its private
+# key. The system LibreSSL writes a PKCS#12 file that `security import` reads;
+# Homebrew's OpenSSL 3 by default does not.
+create_dev_keychain() {
+    local dir
+    dir="$(mktemp -d)"
+    # The directory holds the unencrypted private key until it's imported.
+    trap 'rm -rf "${dir}"' EXIT
+
+    echo "Creating the \"${DEV_SIGNING_IDENTITY}\" certificate in ${DEV_KEYCHAIN}..."
+    /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 36500 -subj "/CN=${DEV_SIGNING_IDENTITY}" \
+        -addext "keyUsage=critical,digitalSignature" -addext "extendedKeyUsage=critical,codeSigning" \
+        -keyout "${dir}/key.pem" -out "${dir}/cert.pem"
+    /usr/bin/openssl pkcs12 -export -inkey "${dir}/key.pem" -in "${dir}/cert.pem" -name "${DEV_SIGNING_IDENTITY}" \
+        -out "${dir}/identity.p12" -passout pass:"${DEV_KEYCHAIN_PASSWORD}"
+
+    security create-keychain -p "${DEV_KEYCHAIN_PASSWORD}" "${DEV_KEYCHAIN}"
+    security set-keychain-settings "${DEV_KEYCHAIN}"
+    security unlock-keychain -p "${DEV_KEYCHAIN_PASSWORD}" "${DEV_KEYCHAIN}"
+    security import "${dir}/identity.p12" -k "${DEV_KEYCHAIN}" -P "${DEV_KEYCHAIN_PASSWORD}" \
+        -T /usr/bin/codesign > /dev/null
+    security set-key-partition-list -S apple-tool:,apple: -s -k "${DEV_KEYCHAIN_PASSWORD}" "${DEV_KEYCHAIN}" > /dev/null
+}
+
+# Adds the dev keychain to the user's keychain search list, where codesign
+# looks for identities, keeping the keychains already on it.
+add_dev_keychain_to_search_list() {
+    local keychains=() keychain
+    while IFS= read -r keychain; do
+        keychains+=("${keychain}")
+    done < <(security list-keychains -d user | sed -n 's/^ *"\(.*\)"$/\1/p')
+    security list-keychains -d user -s "${keychains[@]}" "${DEV_KEYCHAIN}"
+}
 
 if [[ -n "$VERSION" ]]; then
     APP_NAME="Soffos"
@@ -29,6 +72,20 @@ else
     ICON="icon-dev.icns"
     VERSION="0.0.0"
     UPDATE_KEYS=""
+    if [[ -z "$SIGNING_IDENTITY" ]]; then
+        SIGNING_IDENTITY="${DEV_SIGNING_IDENTITY}"
+        # Recreates the keychain if an earlier run didn't finish setting it up.
+        if ! security find-certificate -c "${DEV_SIGNING_IDENTITY}" "${DEV_KEYCHAIN}" > /dev/null 2>&1; then
+            if [[ -f "${DEV_KEYCHAIN}" ]]; then
+                security delete-keychain "${DEV_KEYCHAIN}"
+            fi
+            create_dev_keychain
+        fi
+        if ! security list-keychains -d user | grep -qF "\"${DEV_KEYCHAIN}\""; then
+            add_dev_keychain_to_search_list
+        fi
+        security unlock-keychain -p "${DEV_KEYCHAIN_PASSWORD}" "${DEV_KEYCHAIN}"
+    fi
 fi
 EXECUTABLE="Soffos"
 APP="${APP_NAME}.app"

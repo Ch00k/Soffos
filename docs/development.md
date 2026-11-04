@@ -18,8 +18,13 @@ Local builds are **Soffos Dev**: a separate app (bundle ID `re.mntw.soffos.dev`)
 settings, Spotify sign-in and logs, and no auto-updates, so it runs side by side with an installed release. Both
 control the same speakers.
 
-Builds are signed ad hoc unless `SIGNING_IDENTITY` names a code signing certificate. An ad-hoc build is signed
-differently every time, so macOS asks again for Keychain and Local Network access after each rebuild.
+Dev builds are signed with "Soffos Dev Signing", a self-signed certificate that `build.sh` creates the first time it
+runs on a machine, in a keychain of its own (`~/Library/Keychains/soffos-dev.keychain-db`, added to the keychain search
+list). Every rebuild is signed with the same certificate, so the Local Network access granted to one build carries over
+to the next. Keychain access may not: macOS can tie a saved item to the exact binary of an app without a Team ID, and
+then asks again after a rebuild. The keychain has a fixed password that `build.sh` uses to unlock it, so signing never shows a
+password dialog. To start over with a new certificate, run `security delete-keychain soffos-dev.keychain-db`.
+`SIGNING_IDENTITY` names a different certificate to sign with.
 
 ## Logs
 
