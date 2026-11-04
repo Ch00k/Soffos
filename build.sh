@@ -29,7 +29,8 @@ create_dev_keychain() {
     local dir
     dir="$(mktemp -d)"
     # The directory holds the unencrypted private key until it's imported.
-    trap 'rm -rf "${dir}"' EXIT
+    # The path is expanded now: `dir` is out of scope when the trap fires.
+    trap "rm -rf '${dir}'" EXIT
 
     echo "Creating the \"${DEV_SIGNING_IDENTITY}\" certificate in ${DEV_KEYCHAIN}..."
     /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 36500 -subj "/CN=${DEV_SIGNING_IDENTITY}" \
@@ -43,7 +44,6 @@ create_dev_keychain() {
     security unlock-keychain -p "${DEV_KEYCHAIN_PASSWORD}" "${DEV_KEYCHAIN}"
     security import "${dir}/identity.p12" -k "${DEV_KEYCHAIN}" -P "${DEV_KEYCHAIN_PASSWORD}" \
         -T /usr/bin/codesign > /dev/null
-    security set-key-partition-list -S apple-tool:,apple: -s -k "${DEV_KEYCHAIN_PASSWORD}" "${DEV_KEYCHAIN}" > /dev/null
 }
 
 # Adds the dev keychain to the user's keychain search list, where codesign
@@ -74,7 +74,8 @@ else
     UPDATE_KEYS=""
     if [[ -z "$SIGNING_IDENTITY" ]]; then
         SIGNING_IDENTITY="${DEV_SIGNING_IDENTITY}"
-        # Recreates the keychain if an earlier run didn't finish setting it up.
+        # Recreates the keychain if an earlier run stopped before importing
+        # the certificate.
         if ! security find-certificate -c "${DEV_SIGNING_IDENTITY}" "${DEV_KEYCHAIN}" > /dev/null 2>&1; then
             if [[ -f "${DEV_KEYCHAIN}" ]]; then
                 security delete-keychain "${DEV_KEYCHAIN}"
@@ -85,6 +86,9 @@ else
             add_dev_keychain_to_search_list
         fi
         security unlock-keychain -p "${DEV_KEYCHAIN_PASSWORD}" "${DEV_KEYCHAIN}"
+        # Lets codesign use the key without a dialog. Done on every build so a
+        # setup that stopped after the import is completed.
+        security set-key-partition-list -S apple-tool:,apple: -s -k "${DEV_KEYCHAIN_PASSWORD}" "${DEV_KEYCHAIN}" > /dev/null
     fi
 fi
 EXECUTABLE="Soffos"
