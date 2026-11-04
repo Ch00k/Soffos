@@ -1,0 +1,6 @@
+.build/
+.swiftpm/
+*.xcodeproj
+Soffos.app/
+Soffos.zip
+.DS_Store
