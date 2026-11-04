@@ -29,7 +29,8 @@ create_dev_keychain() {
     local dir
     dir="$(mktemp -d)"
     # The directory holds the unencrypted private key until it's imported.
-    # The path is expanded now: `dir` is out of scope when the trap fires.
+    # The trap removes it if a step fails; the path is expanded now because
+    # `dir` is out of scope when the trap fires.
     trap "rm -rf '${dir}'" EXIT
 
     echo "Creating the \"${DEV_SIGNING_IDENTITY}\" certificate in ${DEV_KEYCHAIN}..."
@@ -44,6 +45,8 @@ create_dev_keychain() {
     security unlock-keychain -p "${DEV_KEYCHAIN_PASSWORD}" "${DEV_KEYCHAIN}"
     security import "${dir}/identity.p12" -k "${DEV_KEYCHAIN}" -P "${DEV_KEYCHAIN_PASSWORD}" \
         -T /usr/bin/codesign > /dev/null
+    rm -rf "${dir}"
+    trap - EXIT
 }
 
 # Adds the dev keychain to the user's keychain search list, where codesign
