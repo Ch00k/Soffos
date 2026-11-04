@@ -24,7 +24,8 @@ directly over the local network, with no Sonos cloud account involved.
   starts on a random track
 - **Add to Playlist**: add the track that's playing to one of your own (or collaborative) Spotify playlists
 
-Logs go to the unified log: `log stream --predicate 'subsystem == "re.mntw.soffos"'`.
+Logs go to the unified log: `log stream --predicate 'subsystem == "re.mntw.soffos"'` (`re.mntw.soffos.dev` for local
+builds).
 
 ## Install
 
@@ -38,6 +39,9 @@ Settings > Privacy & Security and click **Open Anyway** (on macOS 14 you can ins
 ```sh
 xattr -d com.apple.quarantine /Applications/Soffos.app
 ```
+
+After that, Soffos keeps itself up to date: it checks for new releases in the background, and Soffos > Check for
+Updates... checks right away.
 
 ## Setup
 
@@ -55,21 +59,44 @@ If speakers aren't found (e.g. they're on a separate VLAN), enter any speaker's 
 Requires macOS 14+ and Swift 6 (Xcode or the Command Line Tools).
 
 ```sh
-./build.sh            # Soffos.app + Soffos.zip
+./build.sh            # Soffos Dev.app + Soffos Dev.zip
 swift test            # unit tests
 SONOS_LIVE=1 swift test --filter LiveTests   # read-only checks against real speakers
 ```
 
 You can also open `Package.swift` in Xcode.
 
-The app icon is drawn in `icon.svg`. After changing it, regenerate `icon.icns` (needs `brew install librsvg`):
+Local builds are **Soffos Dev**: a separate app (bundle ID `re.mntw.soffos.dev`) with a navy icon and its own
+settings, Spotify sign-in and logs, and no auto-updates, so it runs side by side with an installed release. Both
+control the same speakers. Builds are signed ad hoc unless `SIGNING_IDENTITY` names a code signing certificate; an
+ad-hoc build is signed differently every time, so macOS asks again for Keychain and Local Network access after each
+rebuild.
+
+The app icon is drawn in `icon.svg`, and the dev build's navy variant in `icon-dev.svg`. After changing either,
+regenerate the `.icns` files (needs `brew install librsvg`):
 
 ```sh
-mkdir Soffos.iconset && for s in 16 32 128 256 512; do
-  rsvg-convert -w $s icon.svg -o Soffos.iconset/icon_${s}x${s}.png
-  rsvg-convert -w $((s * 2)) icon.svg -o Soffos.iconset/icon_${s}x${s}@2x.png
-done && iconutil -c icns Soffos.iconset -o icon.icns && rm -r Soffos.iconset
+for name in icon icon-dev; do mkdir $name.iconset && for s in 16 32 128 256 512; do
+  rsvg-convert -w $s $name.svg -o $name.iconset/icon_${s}x${s}.png
+  rsvg-convert -w $((s * 2)) $name.svg -o $name.iconset/icon_${s}x${s}@2x.png
+done && iconutil -c icns $name.iconset -o $name.icns && rm -r $name.iconset; done
 ```
+
+## Release
+
+Push a version tag (e.g. `0.0.2`). The release workflow tests, runs `VERSION=<tag> ./build.sh --universal` to build
+**Soffos** signed with the project's self-signed certificate, and publishes `Soffos.zip` together with the Sparkle
+update feed `appcast.xml` on the GitHub release. Installed copies find the update through
+`releases/latest/download/appcast.xml`.
+
+The workflow needs these repository secrets:
+
+- `SIGNING_CERTIFICATE_P12`: the "Soffos Code Signing" certificate and private key as a base64-encoded `.p12`
+- `SIGNING_CERTIFICATE_PASSWORD`: the `.p12` password
+- `SPARKLE_PRIVATE_KEY`: the EdDSA key that signs updates; its public half is `SUPublicEDKey` in `build.sh`
+
+Every release must be signed with the same certificate and Sparkle key: Sparkle rejects an update signed with
+anything else, and a new certificate makes macOS ask for Keychain and Local Network access again.
 
 ## Layout
 

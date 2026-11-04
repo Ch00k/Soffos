@@ -10,23 +10,65 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write
+    env:
+      VERSION: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v7
-
-      - name: Set version from tag
-        run: |
-          sed -i '' "s/VERSION_PLACEHOLDER/${{ github.ref_name }}/g" build.sh
 
       - name: Test
         run: swift test
 
-      - name: Build
+      - name: Import signing certificate
+        env:
+          SIGNING_CERTIFICATE_P12: ${{ secrets.SIGNING_CERTIFICATE_P12 }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          chmod +x build.sh
-          ./build.sh --universal
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "$SIGNING_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/signing.p12" -k "$KEYCHAIN" -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -f pkcs12
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+      - name: Build
+        env:
+          SIGNING_IDENTITY: Soffos Code Signing
+        run: ./build.sh --universal
+
+      - name: Write appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          SPARKLE_VERSION=$(jq -r '.pins[] | select(.identity == "sparkle") | .state.version' Package.resolved)
+          curl -sSfL "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" \
+            | tar -xJ -C "$RUNNER_TEMP" bin/sign_update
+          SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" | "$RUNNER_TEMP/bin/sign_update" --ed-key-file - Soffos.zip)
+
+          cat > appcast.xml << EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>Soffos</title>
+              <item>
+                <title>${VERSION}</title>
+                <pubDate>$(date -R)</pubDate>
+                <sparkle:version>${VERSION}</sparkle:version>
+                <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+                <enclosure url="https://github.com/${{ github.repository }}/releases/download/${VERSION}/Soffos.zip" ${SIGNATURE} type="application/octet-stream"/>
+              </item>
+            </channel>
+          </rss>
+          EOF
 
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
-          files: Soffos.zip
+          files: |
+            Soffos.zip
+            appcast.xml
           generate_release_notes: true

@@ -3,4 +3,6 @@
 *.xcodeproj
 Soffos.app/
 Soffos.zip
+Soffos Dev.app/
+Soffos Dev.zip
 .DS_Store

@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import SonosKit
 
-/// User settings, persisted as JSON in ~/Library/Application Support/Soffos.
+/// User settings, persisted as JSON in ~/Library/Application Support/<app name>.
 @Observable
 @MainActor
 final class AppSettings {
@@ -24,7 +24,7 @@ final class AppSettings {
 
     private static var fileURL: URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = support.appendingPathComponent("Soffos")
+        let dir = support.appendingPathComponent(AppIdentity.name)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("settings.json")
     }

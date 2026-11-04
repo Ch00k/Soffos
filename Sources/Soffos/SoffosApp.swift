@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 import SwiftUI
 
 @main
@@ -7,6 +8,11 @@ struct SoffosApp: App {
     @State private var settings: AppSettings
     @State private var sonos: SonosStore
     @State private var spotify: SpotifyStore
+    /// Checks for and installs new releases. Dev builds have no update feed,
+    /// so they don't get one.
+    private let updater = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") == nil
+        ? nil
+        : SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     init() {
         URLCache.shared = URLCache(memoryCapacity: 64 << 20, diskCapacity: 256 << 20)
@@ -18,7 +24,7 @@ struct SoffosApp: App {
     }
 
     var body: some Scene {
-        Window("Soffos", id: "main") {
+        Window(AppIdentity.name, id: "main") {
             RootView()
                 .environment(settings)
                 .environment(sonos)
@@ -31,6 +37,13 @@ struct SoffosApp: App {
                 }
         }
         .defaultSize(width: 600, height: 720)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                if let updater {
+                    Button("Check for Updates…") { updater.checkForUpdates(nil) }
+                }
+            }
+        }
 
         Settings {
             SettingsView()

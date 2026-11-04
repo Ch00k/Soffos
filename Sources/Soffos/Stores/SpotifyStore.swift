@@ -24,7 +24,7 @@ final class SpotifyStore {
     private(set) var likedSongs: [SpotifyTrack]?
     private(set) var recent: [SpotifyTrack]?
 
-    let tokens = SpotifyTokenStore(keychainService: "re.mntw.soffos.spotify")
+    let tokens = SpotifyTokenStore(keychainService: "\(AppIdentity.bundleID).spotify")
     private let settings: AppSettings
     private let log: AppLog
     @ObservationIgnored private var authSession: ASWebAuthenticationSession?
