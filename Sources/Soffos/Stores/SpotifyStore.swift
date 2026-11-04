@@ -107,7 +107,8 @@ final class SpotifyStore {
 
     private func authenticate(url: URL) async throws -> URL {
         try await withCheckedThrowingContinuation { continuation in
-            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: Self.redirectScheme) { callback, error in
+            // @Sendable keeps the handler off the main actor: the session calls it on a background queue.
+            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: Self.redirectScheme) { @Sendable callback, error in
                 if let callback {
                     continuation.resume(returning: callback)
                 } else {
