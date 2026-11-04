@@ -11,28 +11,31 @@ struct Artwork: View {
     @State private var image: NSImage?
 
     var body: some View {
-        ZStack {
-            if let image {
-                Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
-            } else {
-                Rectangle().fill(.quaternary)
-                Image(systemName: placeholder)
-                    .font(.title2)
-                    .foregroundStyle(.tertiary)
+        // The square sets the size; the image fills it from an overlay, so
+        // an image that isn't square is cropped instead of widening the view.
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                if let image {
+                    Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    Rectangle().fill(.quaternary)
+                    Image(systemName: placeholder)
+                        .font(.title2)
+                        .foregroundStyle(.tertiary)
+                }
             }
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        .task(id: url) {
-            guard let url else { image = nil; return }
-            if let cached = ImageCache.shared.cached(url) {
-                image = cached
-                return
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .task(id: url) {
+                guard let url else { image = nil; return }
+                if let cached = ImageCache.shared.cached(url) {
+                    image = cached
+                    return
+                }
+                image = nil
+                let loaded = await ImageCache.shared.load(url)
+                withAnimation(.easeOut(duration: 0.15)) { image = loaded }
             }
-            image = nil
-            let loaded = await ImageCache.shared.load(url)
-            withAnimation(.easeOut(duration: 0.15)) { image = loaded }
-        }
     }
 }
 
