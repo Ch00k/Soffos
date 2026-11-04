@@ -56,7 +56,7 @@ struct RootView: View {
                             }
                     }
                     .frame(width: widths.main)
-                    .overlay(alignment: .top) { panelButtons }
+                    .toolbar { panelButtons }
 
                     if widths.queue > 0 {
                         QueueView()
@@ -100,20 +100,15 @@ struct RootView: View {
         }
     }
 
-    /// Sidebar and queue toggles, floating over the top corners of the main pane.
-    private var panelButtons: some View {
-        HStack {
-            FloatingButton(symbol: "sidebar.left", isOn: window.showSidebar,
-                           help: window.showSidebar ? "Hide the sidebar" : "Show the sidebar") {
+    /// The sidebar toggle at the leading end of the toolbar. The queue toggle
+    /// is a title bar accessory (see `MainWindow.attach`).
+    private var panelButtons: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            PanelButton(symbol: "sidebar.left", isOn: window.showSidebar,
+                        help: window.showSidebar ? "Hide the sidebar" : "Show the sidebar") {
                 window.toggle(.sidebar)
             }
-            Spacer()
-            FloatingButton(symbol: "list.bullet", isOn: window.showQueue,
-                           help: window.showQueue ? "Hide the queue" : "Show the queue") {
-                window.toggle(.queue)
-            }
         }
-        .padding(10)
     }
 
     @ViewBuilder private var detail: some View {
@@ -129,8 +124,10 @@ struct RootView: View {
     }
 }
 
-/// A small round button on a translucent background.
-private struct FloatingButton: View {
+/// A panel toggle drawn like a toolbar button: a rounded highlight on hover,
+/// and an accent-coloured symbol while its panel is open. Both toggles use it,
+/// so the one in the toolbar and the one in the title bar accessory match.
+private struct PanelButton: View {
     let symbol: String
     let isOn: Bool
     let help: String
@@ -140,18 +137,29 @@ private struct FloatingButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(isOn ? Color.accentColor : .primary)
-                .frame(width: 30, height: 30)
-                .background(.regularMaterial, in: Circle())
-                .overlay(Circle().strokeBorder(.white.opacity(0.15)))
-                .shadow(color: .black.opacity(0.2), radius: 4, y: 1)
-                .opacity(hovering ? 1 : 0.75)
+                .font(.system(size: 17))
+                .foregroundStyle(isOn ? Color.accentColor : .secondary)
+                .frame(width: 36, height: 28)
+                .background(.quaternary.opacity(hovering ? 1 : 0), in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help(help)
         .accessibilityLabel(help)
+    }
+}
+
+/// The queue toggle, shown at the right end of the title bar.
+struct QueueToggle: View {
+    let window: MainWindow
+
+    var body: some View {
+        PanelButton(symbol: "list.bullet", isOn: window.showQueue,
+                    help: window.showQueue ? "Hide the queue" : "Show the queue") {
+            window.toggle(.queue)
+        }
+        .padding(.horizontal, 8)
     }
 }
 

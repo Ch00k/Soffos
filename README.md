@@ -13,8 +13,8 @@ local network, with no Sonos cloud account involved.
 
 ## Features
 
-- Now Playing shows the cover art; the sidebar (rooms, Spotify) and the queue open from floating buttons and widen
-  the window instead of squeezing the cover
+- Now Playing shows the cover art; the sidebar (rooms, Spotify) and the queue open from the toolbar and widen the
+  window instead of squeezing the cover
 - Compact playback footer: hover the progress line for times (click/drag to seek), hover the track for full details
 - Group volume with -/+ for single steps, per-room volumes for groups, and mute
 - Browse Spotify: search, playlists, saved albums, followed artists, liked songs, recently played

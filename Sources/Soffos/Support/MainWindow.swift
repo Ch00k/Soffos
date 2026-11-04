@@ -36,16 +36,31 @@ final class MainWindow {
         closeToDock.install(on: window)
         // Restores the saved frame now and saves it on every move and resize.
         window.setFrameAutosaveName("Main")
+
+        // The accessory stays at the window's right edge, after the
+        // toolbar's search field, and never moves into the overflow menu.
+        let queueToggle = NSHostingView(rootView: QueueToggle(window: self))
+        queueToggle.frame.size = queueToggle.fittingSize
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.layoutAttribute = .right
+        accessory.view = queueToggle
+        window.addTitlebarAccessoryViewController(accessory)
     }
 
-    /// The narrowest the window may be: a usable main pane plus the open
-    /// panels. A panel that's animating doesn't count yet (opening) or any
-    /// more (closing), otherwise AppKit snaps the window to the new minimum
+    /// The narrowest the main pane may be: wide enough for the toolbar to
+    /// show every item while a search field is focused and expanded (636
+    /// measured on Playlists and Liked Songs), so nothing moves into the
+    /// overflow menu.
+    static let mainMinimumWidth: CGFloat = 640
+
+    /// The narrowest the window may be: the main pane plus the open panels.
+    /// A panel that's animating doesn't count yet (opening) or any more
+    /// (closing), otherwise AppKit snaps the window to the new minimum
     /// before the animation can run.
     var minimumWidth: CGFloat {
         let sidebar = showSidebar && animating != .sidebar ? Self.panelWidth : 0
         let queue = showQueue && animating != .queue ? Self.panelWidth : 0
-        return 460 + sidebar + queue
+        return Self.mainMinimumWidth + sidebar + queue
     }
 
     /// Panel and main pane widths for a given total width.
