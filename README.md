@@ -1,17 +1,15 @@
 # Soffos
 
-A native macOS controller for Sonos, with Spotify as its only music source. Built with SwiftUI. It talks to the speakers
-directly over the local network, with no Sonos cloud account involved.
+A native macOS controller for Sonos, with Spotify as its only music source. It talks to the speakers directly over the
+local network, with no Sonos cloud account involved.
 
 ## How it works
 
-- **Speakers**: Soffos finds your players via SSDP and controls them over Sonos's local UPnP/SOAP API on port 1400:
-  rooms (including groups made in the Sonos app), transport, volume (per group and per room), shuffle/repeat, and the
-  queue.
-- **Spotify**: the Spotify Web API (your own app, PKCE sign-in) is used only for browsing and search. To play, Soffos
-  adds the Spotify track/album/playlist to the Sonos queue and Sonos streams it from its own linked Spotify account.
-  Audio never passes through your Mac. This also means followed playlists play fine even though Spotify no longer
-  lets third-party apps list their tracks.
+- **Speakers**: Soffos finds your speakers on the local network and controls them directly: rooms (including groups
+  made in the Sonos app), playback, volume (per group and per room), shuffle/repeat, and the queue.
+- **Spotify**: Soffos uses Spotify only for browsing and search. To play, it adds the track, album or playlist to the
+  Sonos queue, and Sonos streams it from its own linked Spotify account. Audio never passes through your Mac. This also
+  means followed playlists play fine even though Spotify no longer lets third-party apps list their tracks.
 
 ## Features
 
@@ -23,13 +21,12 @@ directly over the local network, with no Sonos cloud account involved.
 - **Play** or **Shuffle** any playlist or album. Both replace the room's queue; Shuffle turns on Sonos shuffle and
   starts on a random track
 - **Add to Playlist**: add the track that's playing to one of your own (or collaborative) Spotify playlists
-- System overview in Settings > Sonos: every room's speakers with their model and role (stereo pair left/right, Sub,
-  surrounds)
-
-Logs go to the unified log: `log stream --predicate 'subsystem == "re.mntw.soffos"'` (`re.mntw.soffos.dev` for local
-builds).
+- System overview in Settings > Sonos: every room's speakers with their model, role (stereo pair left/right, Sub,
+  surrounds) and IP address
 
 ## Install
+
+Requires macOS 14 or later.
 
 Download `Soffos.zip` from the [latest release](https://github.com/Ch00k/Soffos/releases/latest), unzip it and move
 `Soffos.app` to Applications.
@@ -54,54 +51,7 @@ Updates... checks right away.
 3. In Soffos > Settings > Spotify, paste the app's Client ID and sign in.
 4. Allow Local Network access when macOS asks.
 
-## Build
+## Development
 
-Requires macOS 14+ and Swift 6 (Xcode or the Command Line Tools).
-
-```sh
-./build.sh            # Soffos Dev.app + Soffos Dev.zip
-swift test            # unit tests
-SONOS_LIVE=1 swift test --filter LiveTests   # read-only checks against real speakers
-```
-
-You can also open `Package.swift` in Xcode.
-
-Local builds are **Soffos Dev**: a separate app (bundle ID `re.mntw.soffos.dev`) with a navy icon and its own
-settings, Spotify sign-in and logs, and no auto-updates, so it runs side by side with an installed release. Both
-control the same speakers. Builds are signed ad hoc unless `SIGNING_IDENTITY` names a code signing certificate; an
-ad-hoc build is signed differently every time, so macOS asks again for Keychain and Local Network access after each
-rebuild.
-
-The app icon is drawn in `icon.svg`, and the dev build's navy variant in `icon-dev.svg`. After changing either,
-regenerate the `.icns` files (needs `brew install librsvg`):
-
-```sh
-for name in icon icon-dev; do mkdir $name.iconset && for s in 16 32 128 256 512; do
-  rsvg-convert -w $s $name.svg -o $name.iconset/icon_${s}x${s}.png
-  rsvg-convert -w $((s * 2)) $name.svg -o $name.iconset/icon_${s}x${s}@2x.png
-done && iconutil -c icns $name.iconset -o $name.icns && rm -r $name.iconset; done
-```
-
-## Release
-
-Push a version tag (e.g. `0.0.2`). The release workflow tests, runs `VERSION=<tag> ./build.sh --universal` to build
-**Soffos** signed with the project's self-signed certificate, and publishes `Soffos.zip` together with the Sparkle
-update feed `appcast.xml` on the GitHub release. Installed copies find the update through
-`releases/latest/download/appcast.xml`.
-
-The workflow needs these repository secrets:
-
-- `SIGNING_CERTIFICATE_P12`: the "Soffos Code Signing" certificate and private key as a base64-encoded `.p12`
-- `SIGNING_CERTIFICATE_PASSWORD`: the `.p12` password
-- `SPARKLE_PRIVATE_KEY`: the EdDSA key that signs updates; its public half is `SUPublicEDKey` in `build.sh`
-
-Every release must be signed with the same certificate and Sparkle key: Sparkle rejects an update signed with
-anything else, and a new certificate makes macOS ask for Keychain and Local Network access again.
-
-## Layout
-
-```
-Sources/SonosKit/    UPnP/SOAP client, SSDP discovery, topology/DIDL parsing, Spotify-to-Sonos queue entries
-Sources/SpotifyKit/  Spotify Web API client, PKCE auth, Keychain token storage
-Sources/Soffos/      SwiftUI app: stores, views, settings
-```
+Building, testing and releasing Soffos are described in [docs/development.md](docs/development.md) and
+[docs/releasing.md](docs/releasing.md).

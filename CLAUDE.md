@@ -7,7 +7,7 @@
   `›` in settings paths, `·` as a separator, curly quotes, and the en dash between artist and album in Now Playing.
   Other dashes are ASCII hyphens. Comments, docs and tests stay ASCII.
 - Release signing: the self-signed "Soffos Code Signing" certificate and the Sparkle EdDSA key are GitHub secrets (see
-  README, Release). The Sparkle private key is also in aymini's login keychain (`generate_keys --account soffos`). The
+  docs/releasing.md). The Sparkle private key is also in aymini's login keychain (`generate_keys --account soffos`). The
   certificate deliberately has no copy outside GitHub, which can't read secrets back. Replacing either breaks
   auto-updates: installed copies then need one manual reinstall.
 - Speaker firmware updates: `CheckForUpdate` on ZoneGroupTopology is read-only and safe. Never send
