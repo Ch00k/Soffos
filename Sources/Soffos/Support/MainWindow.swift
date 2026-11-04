@@ -8,15 +8,20 @@ import SwiftUI
 @Observable
 @MainActor
 final class MainWindow {
-    enum Panel { case sidebar, queue }
+    enum Panel {
+        case sidebar, queue
+
+        var defaultsKey: String { self == .sidebar ? "showSidebar" : "showQueue" }
+    }
 
     /// Both panels share one width.
     static let panelWidth: CGFloat = 260
     static let animationDuration: TimeInterval = 0.25
 
-    // Panels always start collapsed.
-    private(set) var showSidebar = false
-    private(set) var showQueue = false
+    /// Which panels are open is remembered across launches; the window frame,
+    /// which includes the open panels' width, is restored by AppKit.
+    private(set) var showSidebar = UserDefaults.standard.bool(forKey: Panel.sidebar.defaultsKey)
+    private(set) var showQueue = UserDefaults.standard.bool(forKey: Panel.queue.defaultsKey)
     /// Set while a panel animates: the main pane keeps this width and the
     /// panel takes whatever width the window has.
     private(set) var frozenMainWidth: CGFloat?
@@ -29,6 +34,8 @@ final class MainWindow {
         guard self.window !== window else { return }
         self.window = window
         closeToDock.install(on: window)
+        // Restores the saved frame now and saves it on every move and resize.
+        window.setFrameAutosaveName("Main")
     }
 
     /// The narrowest the window may be: a usable main pane plus the open
@@ -90,6 +97,8 @@ final class MainWindow {
         case .sidebar: showSidebar = visible
         case .queue: showQueue = visible
         }
+
+        UserDefaults.standard.set(visible, forKey: panel.defaultsKey)
     }
 
     /// Moves and resizes the window together, frame by frame. AppKit's own

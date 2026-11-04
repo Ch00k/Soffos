@@ -2,7 +2,7 @@ import SonosKit
 import SpotifyKit
 import SwiftUI
 
-enum SidebarItem: Hashable {
+enum SidebarItem: String, Hashable {
     case nowPlaying, search, playlists, albums, artists, likedSongs, recent
 }
 
@@ -20,8 +20,8 @@ struct RootView: View {
     @Environment(SonosStore.self) private var sonos
     @Environment(SpotifyStore.self) private var spotify
     @State private var window = MainWindow()
-    // Always opens on Now Playing with both panels collapsed.
-    @State private var selection: SidebarItem = .nowPlaying
+    /// Remembered across launches, like the open panels and the window frame.
+    @AppStorage("sidebarSelection") private var selection: SidebarItem = .nowPlaying
     @State private var path = NavigationPath()
 
     var body: some View {
