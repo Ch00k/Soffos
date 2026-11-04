@@ -278,16 +278,21 @@ struct MediaCard: View {
 struct AddToPlaylistMenu: View {
     @Environment(SonosStore.self) private var sonos
     @Environment(SpotifyStore.self) private var spotify
-    @State private var showing = false
     /// The track at the moment the popover opened, so a track change while
-    /// choosing doesn't add the wrong song.
-    @State private var target: (uri: String, title: String)?
+    /// choosing doesn't add the wrong song. The popover is open while it's set.
+    @State private var target: Target?
+
+    private struct Target: Identifiable {
+        let uri: String
+        let title: String
+
+        var id: String { uri }
+    }
 
     var body: some View {
         let trackURI = sonos.current.spotifyTrackURI
         Button {
-            target = trackURI.map { ($0, sonos.current.displayTitle) }
-            showing = true
+            target = trackURI.map { Target(uri: $0, title: sonos.current.displayTitle) }
         } label: {
             Image(systemName: "plus.circle")
         }
@@ -296,12 +301,10 @@ struct AddToPlaylistMenu: View {
         .help(!spotify.isSignedIn ? "Sign in to Spotify first"
               : trackURI == nil ? "The current track isn't from Spotify"
               : "Add this track to a playlist")
-        .popover(isPresented: $showing, arrowEdge: .top) {
-            if let target {
-                PlaylistPicker(trackTitle: target.title) { playlist in
-                    showing = false
-                    Task { await spotify.addToPlaylist(trackURI: target.uri, trackTitle: target.title, playlist: playlist) }
-                }
+        .popover(item: $target, arrowEdge: .top) { target in
+            PlaylistPicker(trackTitle: target.title) { playlist in
+                self.target = nil
+                Task { await spotify.addToPlaylist(trackURI: target.uri, trackTitle: target.title, playlist: playlist) }
             }
         }
     }
@@ -348,6 +351,7 @@ private struct PlaylistPicker: View {
                         .buttonStyle(.plain)
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                     .frame(height: min(CGFloat(items.count) * 36 + 8, 320))
                 }
             }
