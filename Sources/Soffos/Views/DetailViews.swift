@@ -54,6 +54,8 @@ struct PlaylistDetailView: View {
     @Environment(SpotifyStore.self) private var spotify
     let playlist: SpotifyPlaylist
     @State private var tracks: [SpotifyTrack]?
+    /// Where the next page of songs starts; nil once all are loaded.
+    @State private var nextOffset: Int? = 0
     @State private var restricted = false
 
     var body: some View {
@@ -67,35 +69,48 @@ struct PlaylistDetailView: View {
                     imageURL: playlist.images?.best(minWidth: 400),
                     uri: playlist.uri
                 )
-                if let tracks, !tracks.isEmpty {
+                if restricted {
+                    Text("Spotify only lists the songs of playlists you own. You can still play this playlist on Sonos.")
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 24)
+                } else {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
+                        ForEach(Array((tracks ?? []).enumerated()), id: \.offset) { index, track in
                             TrackRow(index: index, track: track)
+                        }
+                        // Loads the next page whenever it scrolls into view,
+                        // and again after each page while it stays in view.
+                        if nextOffset != nil {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .padding(tracks == nil ? 40 : 16)
+                                .task(id: tracks?.count) { await loadNextPage() }
                         }
                     }
                     .padding(.horizontal, 12)
                     .padding(.bottom, 24)
-                } else if restricted {
-                    Text("Spotify only lists the songs of playlists you own. You can still play this playlist on Sonos.")
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 24)
-                } else if tracks == nil {
-                    ProgressView().frame(maxWidth: .infinity).padding(40)
                 }
             }
         }
         .navigationTitle(playlist.name)
-        .task(id: playlist.id) {
-            do {
-                tracks = try await spotify.api.all { try await spotify.api.playlistItems(playlist.id, offset: $0) }.map(\.track)
-                restricted = tracks?.isEmpty == true && (playlist.trackCount ?? 0) > 0
-            } catch SpotifyAPIError.http(let status, _) where status == 403 || status == 404 {
-                tracks = []
-                restricted = true
-            } catch {
-                tracks = []
-                spotify.lastError = error.localizedDescription
-            }
+    }
+
+    private func loadNextPage() async {
+        guard let offset = nextOffset else { return }
+
+        do {
+            let page = try await spotify.api.playlistItems(playlist.id, offset: offset)
+            tracks = (tracks ?? []) + page.items.map(\.track)
+            nextOffset = page.next == nil || page.items.isEmpty ? nil : page.offset + page.limit
+            restricted = tracks?.isEmpty == true && (playlist.trackCount ?? 0) > 0
+        } catch is CancellationError {
+        } catch let error as URLError where error.code == .cancelled {
+        } catch SpotifyAPIError.http(let status, _) where status == 403 || status == 404 {
+            nextOffset = nil
+            restricted = (tracks ?? []).isEmpty
+        } catch {
+            nextOffset = nil
+            spotify.lastError = error.localizedDescription
         }
     }
 }
