@@ -26,6 +26,19 @@ directly over the local network, with no Sonos cloud account involved.
 
 Logs go to the unified log: `log stream --predicate 'subsystem == "re.mntw.soffos"'`.
 
+## Install
+
+Download `Soffos.zip` from the [latest release](https://github.com/Ch00k/Soffos/releases/latest), unzip it and move
+`Soffos.app` to Applications.
+
+Soffos is not notarized by Apple, so macOS blocks it on first launch. To allow it, open it once, then go to System
+Settings > Privacy & Security and click **Open Anyway** (on macOS 14 you can instead Control-click the app and choose
+**Open**). Alternatively, clear the quarantine flag in Terminal:
+
+```sh
+xattr -d com.apple.quarantine /Applications/Soffos.app
+```
+
 ## Setup
 
 1. Make sure Spotify is added in the Sonos app (Settings > Services & Voice).
