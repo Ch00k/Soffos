@@ -7,10 +7,8 @@ import SonosKit
 @MainActor
 final class AppSettings {
     var spotifyClientID: String = "" { didSet { save() } }
+    /// The Spotify service number that last worked on Sonos, tried first next time.
     var spotifyRegion: SpotifyOnSonos.Region = .global { didSet { save() } }
-    /// Optional IP/host of any Sonos player, for networks where SSDP
-    /// multicast doesn't get through (VLANs, some mesh routers).
-    var manualPlayerHost: String = "" { didSet { save() } }
     var lastGroupID: String? { didSet { save() } }
 
     @ObservationIgnored private var loading = false
@@ -18,7 +16,6 @@ final class AppSettings {
     private struct Stored: Codable {
         var spotifyClientID: String?
         var spotifyRegion: SpotifyOnSonos.Region?
-        var manualPlayerHost: String?
         var lastGroupID: String?
     }
 
@@ -37,7 +34,6 @@ final class AppSettings {
         else { return }
         spotifyClientID = stored.spotifyClientID ?? ""
         spotifyRegion = stored.spotifyRegion ?? .global
-        manualPlayerHost = stored.manualPlayerHost ?? ""
         lastGroupID = stored.lastGroupID
     }
 
@@ -46,7 +42,6 @@ final class AppSettings {
         let stored = Stored(
             spotifyClientID: spotifyClientID.trimmingCharacters(in: .whitespacesAndNewlines),
             spotifyRegion: spotifyRegion,
-            manualPlayerHost: manualPlayerHost.trimmingCharacters(in: .whitespacesAndNewlines),
             lastGroupID: lastGroupID
         )
         let encoder = JSONEncoder()

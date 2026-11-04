@@ -23,6 +23,8 @@ directly over the local network, with no Sonos cloud account involved.
 - **Play** or **Shuffle** any playlist or album. Both replace the room's queue; Shuffle turns on Sonos shuffle and
   starts on a random track
 - **Add to Playlist**: add the track that's playing to one of your own (or collaborative) Spotify playlists
+- System overview in Settings > Sonos: every room's speakers with their model and role (stereo pair left/right, Sub,
+  surrounds)
 
 Logs go to the unified log: `log stream --predicate 'subsystem == "re.mntw.soffos"'` (`re.mntw.soffos.dev` for local
 builds).
@@ -51,8 +53,6 @@ Updates... checks right away.
    account and allows at most 5 users.
 3. In Soffos > Settings > Spotify, paste the app's Client ID and sign in.
 4. Allow Local Network access when macOS asks.
-
-If speakers aren't found (e.g. they're on a separate VLAN), enter any speaker's IP address in Settings > Sonos.
 
 ## Build
 

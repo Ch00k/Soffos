@@ -16,13 +16,6 @@ public enum SpotifyOnSonos {
         case us = 3079
 
         public var other: Region { self == .global ? .us : .global }
-
-        public var label: String {
-            switch self {
-            case .global: "Global / EU (2311)"
-            case .us: "US (3079)"
-            }
-        }
     }
 
     public enum Kind: String, Sendable {

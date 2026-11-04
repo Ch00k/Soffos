@@ -56,7 +56,7 @@ struct NowPlayingView: View {
             ContentUnavailableView {
                 Label("No Speakers Found", systemImage: "hifispeaker.badge.plus")
             } description: {
-                Text("\(message)\n\nMake sure this Mac is on the same network as your Sonos system and that Soffos is allowed under System Settings › Privacy & Security › Local Network. You can also set a speaker's IP address in Settings.")
+                Text("\(message)\n\nMake sure this Mac is on the same network as your Sonos system and that Soffos is allowed under System Settings › Privacy & Security › Local Network.")
             } actions: {
                 Button("Try Again") { Task { await sonos.discover() } }
             }

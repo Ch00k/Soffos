@@ -16,17 +16,7 @@ struct NowPlayingBar: View {
             HStack(spacing: 8) {
                 Artwork(url: state.track?.albumArtURL, cornerRadius: 4)
                     .frame(width: 34, height: 34)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(state.displayTitle)
-                        .font(.callout.weight(.semibold))
-                        .lineLimit(1)
-                    Text(state.displaySubtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                // Full details when the text is cut off.
-                .help(trackDetails(state))
+                TrackSummary(state: state)
                 AddToPlaylistMenu()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -44,12 +34,90 @@ struct NowPlayingBar: View {
         .overlay(alignment: .top) { SeekBar(leadingInset: leadingInset, trailingInset: trailingInset) }
         .disabled(sonos.selectedGroup == nil)
     }
+}
 
-    private func trackDetails(_ state: NowPlaying) -> String {
-        [state.displayTitle, state.track?.artist, state.track?.album, state.track?.streamContent]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
+/// The footer's title and artist line. When either is cut off, hovering
+/// shows the whole track in a popover.
+private struct TrackSummary: View {
+    let state: NowPlaying
+    @State private var shownWidth: CGFloat = 0
+    @State private var fullWidth: CGFloat = 0
+    @State private var hovering = false
+    @State private var showingDetails = false
+
+    var body: some View {
+        lines
+            .lineLimit(1)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { shownWidth = $0 }
+            .background {
+                lines
+                    .fixedSize()
+                    .hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullWidth = $0 }
+            }
+            .onHover { inside in
+                hovering = inside
+                guard inside else {
+                    showingDetails = false
+                    return
+                }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(300))
+                    if hovering && fullWidth > shownWidth + 1 {
+                        showingDetails = true
+                    }
+                }
+            }
+            .popover(isPresented: $showingDetails, arrowEdge: .top) {
+                TrackCard(state: state)
+            }
+    }
+
+    private var lines: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(state.displayTitle)
+                .font(.callout.weight(.semibold))
+            Text(state.displaySubtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// The playing track in full: cover, title, artist and album.
+private struct TrackCard: View {
+    let state: NowPlaying
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Artwork(url: state.track?.albumArtURL, cornerRadius: 6)
+                .frame(width: 64, height: 64)
+            // Title, artist and album each get their own weight, size or colour.
+            VStack(alignment: .leading, spacing: 3) {
+                Text(state.displayTitle)
+                    .font(.headline)
+                if let artist = nonEmpty(state.track?.artist) {
+                    Text(artist)
+                }
+                if let album = nonEmpty(state.track?.album) {
+                    Text(album)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                if let stream = nonEmpty(state.track?.streamContent) {
+                    Text(stream)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(width: 320, alignment: .leading)
+    }
+
+    private func nonEmpty(_ text: String?) -> String? {
+        text.flatMap { $0.isEmpty ? nil : $0 }
     }
 }
 

@@ -20,6 +20,20 @@ public struct SonosClient: Sendable {
         return try Parsing.zoneGroups(state)
     }
 
+    /// Reads a speaker's product name and picture.
+    public func model(of speaker: SonosSpeaker) async throws -> SpeakerModel {
+        var request = URLRequest(url: speaker.baseURL.appendingPathComponent("xml/device_description.xml"))
+        request.timeoutInterval = 6
+
+        let (data, response) = try await soap.session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            throw SonosError.http(action: "device description", status: status)
+        }
+
+        return try Parsing.speakerModel(String(decoding: data, as: UTF8.self), relativeTo: speaker.baseURL)
+    }
+
     // MARK: Transport (coordinator only)
 
     public func transportState(_ coordinator: SonosPlayer) async throws -> TransportState {

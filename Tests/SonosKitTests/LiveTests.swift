@@ -35,6 +35,10 @@ struct LiveTests {
             """)
             for member in group.members {
                 _ = try await client.volume(member)
+                for speaker in member.speakers {
+                    let model = try await client.model(of: speaker)
+                    print("  \(member.roomName): \(model.name) role=\(speaker.role.map { "\($0)" } ?? "-") @ \(speaker.host)")
+                }
             }
         }
     }

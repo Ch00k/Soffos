@@ -39,6 +39,106 @@ import Testing
         #expect(try Parsing.zoneGroups(xml).map(\.name) == ["Office"])
     }
 
+    /// Parses a stereo pair as captured from real speakers: one visible room
+    /// whose speakers are itself (left) and its hidden partner (right).
+    @Test func stereoPairRoomHasBothSpeakers() throws {
+        let map = "RINCON_949F3E7A924C01400:LF,LF;RINCON_949F3E7A943201400:RF,RF"
+        let xml = """
+        <ZoneGroupState><ZoneGroups>
+          <ZoneGroup Coordinator="RINCON_949F3E7A924C01400" ID="RINCON_949F3E7A924C01400:1084013851">
+            <ZoneGroupMember UUID="RINCON_949F3E7A924C01400" Location="http://192.168.1.131:1400/xml/device_description.xml" \
+        ZoneName="Living Room" ChannelMapSet="\(map)"/>
+            <ZoneGroupMember UUID="RINCON_949F3E7A943201400" Location="http://192.168.1.203:1400/xml/device_description.xml" \
+        ZoneName="Living Room" Invisible="1" ChannelMapSet="\(map)"/>
+          </ZoneGroup>
+        </ZoneGroups></ZoneGroupState>
+        """
+
+        let room = try #require(Parsing.zoneGroups(xml).first?.members.first)
+
+        #expect(room.roomName == "Living Room")
+        #expect(room.speakers.map(\.id) == ["RINCON_949F3E7A924C01400", "RINCON_949F3E7A943201400"])
+        #expect(room.speakers.map(\.role) == [.left, .right])
+        #expect(room.speakers.map(\.host) == ["192.168.1.131", "192.168.1.203"])
+    }
+
+    /// Parses a home theater whose Sub and surrounds are `Satellite` children
+    /// of the soundbar; the soundbar comes first and has no role.
+    @Test func homeTheaterRoomListsSatellitesWithRoles() throws {
+        let xml = """
+        <ZoneGroupState><ZoneGroups>
+          <ZoneGroup Coordinator="RINCON_TV" ID="RINCON_TV:7">
+            <ZoneGroupMember UUID="RINCON_TV" Location="http://10.0.0.10:1400/xml/device_description.xml" ZoneName="TV Room" \
+        HTSatChanMapSet="RINCON_TV:LF,RF;RINCON_SUB:SW;RINCON_LS:LR;RINCON_RS:RR">
+              <Satellite UUID="RINCON_SUB" Location="http://10.0.0.11:1400/xml/device_description.xml" ZoneName="TV Room" Invisible="1"/>
+              <Satellite UUID="RINCON_LS" Location="http://10.0.0.12:1400/xml/device_description.xml" ZoneName="TV Room" Invisible="1"/>
+              <Satellite UUID="RINCON_RS" Location="http://10.0.0.13:1400/xml/device_description.xml" ZoneName="TV Room" Invisible="1"/>
+            </ZoneGroupMember>
+          </ZoneGroup>
+        </ZoneGroups></ZoneGroupState>
+        """
+
+        let room = try #require(Parsing.zoneGroups(xml).first?.members.first)
+
+        #expect(room.speakers.map(\.id) == ["RINCON_TV", "RINCON_SUB", "RINCON_LS", "RINCON_RS"])
+        #expect(room.speakers.map(\.role) == [nil, .sub, .surroundLeft, .surroundRight])
+    }
+
+    /// A room without a channel map is a single speaker: the player itself, with no role.
+    @Test func singleSpeakerRoom() throws {
+        let xml = """
+        <ZoneGroupState><ZoneGroups><ZoneGroup Coordinator="RINCON_C" ID="x">
+          <ZoneGroupMember UUID="RINCON_C" Location="http://10.0.0.8:1400/xml/device_description.xml" ZoneName="Bedroom"/>
+        </ZoneGroup></ZoneGroups></ZoneGroupState>
+        """
+
+        let room = try #require(Parsing.zoneGroups(xml).first?.members.first)
+
+        #expect(room.speakers == [SonosSpeaker(id: "RINCON_C", baseURL: URL(string: "http://10.0.0.8:1400")!, role: nil)])
+    }
+
+    /// Maps channel codes to roles, including a stereo pair with a Sub, and skips malformed entries.
+    @Test func speakerRolesFromChannelMaps() {
+        let roles = Parsing.speakerRoles("A:LF,LF;B:RF,RF;C:SW,SW;broken")
+
+        #expect(roles.map(\.id) == ["A", "B", "C"])
+        #expect(roles.map(\.role) == [.left, .right, .sub])
+        #expect(Parsing.speakerRoles("").isEmpty)
+    }
+
+    /// Reads the root device's display name and icon from a device description
+    /// trimmed from a real Play:1, ignoring the embedded devices' fields.
+    @Test func speakerModelFromDeviceDescription() throws {
+        let xml = """
+        <?xml version="1.0" encoding="utf-8" ?>
+        <root xmlns="urn:schemas-upnp-org:device-1-0"><device>
+          <deviceType>urn:schemas-upnp-org:device:ZonePlayer:1</deviceType>
+          <modelNumber>S12</modelNumber>
+          <modelName>Sonos Play:1</modelName>
+          <iconList><icon><mimetype>image/png</mimetype><width>48</width><height>48</height><url>/img/icon-S12.png</url></icon></iconList>
+          <roomName>Living Room</roomName>
+          <displayName>Play:1</displayName>
+          <deviceList><device>
+            <deviceType>urn:schemas-upnp-org:device:MediaServer:1</deviceType>
+            <modelName>Sonos Play:1</modelName>
+          </device></deviceList>
+        </device></root>
+        """
+
+        let model = try Parsing.speakerModel(xml, relativeTo: URL(string: "http://192.168.1.203:1400")!)
+
+        #expect(model == SpeakerModel(name: "Play:1", iconURL: URL(string: "http://192.168.1.203:1400/img/icon-S12.png")))
+    }
+
+    /// Fails with an invalid-response error when the description has no model name.
+    @Test func speakerModelRequiresAName() {
+        let xml = #"<root xmlns="urn:schemas-upnp-org:device-1-0"><device><deviceType>x</deviceType></device></root>"#
+
+        #expect(throws: SonosError.invalidResponse("device description had no model name")) {
+            try Parsing.speakerModel(xml, relativeTo: URL(string: "http://h:1400")!)
+        }
+    }
+
     /// Reads title, artist and album from a DIDL-Lite item and resolves its relative album art against the player's base URL.
     @Test func didlTrackWithRelativeArt() throws {
         let didl = """

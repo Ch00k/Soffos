@@ -57,7 +57,7 @@ struct NowPlaying: Equatable {
 
     var displaySubtitle: String {
         if let stream = track?.streamContent { return stream }
-        return [track?.artist, track?.album].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " — ")
+        return [track?.artist, track?.album].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " – ")
     }
 }
 
@@ -114,6 +114,9 @@ final class SonosStore {
         groups.flatMap(\.members).sorted { $0.roomName.localizedStandardCompare($1.roomName) == .orderedAscending }
     }
 
+    /// Product names and pictures by speaker ID, loaded on demand.
+    private(set) var speakerModels: [String: SpeakerModel] = [:]
+
     let client = SonosClient()
     private let settings: AppSettings
     private let log: AppLog
@@ -163,10 +166,6 @@ final class SonosStore {
         status = .searching
         do {
             var candidates: [URL] = []
-            let manual = settings.manualPlayerHost.trimmingCharacters(in: .whitespaces)
-            if !manual.isEmpty, let url = URL(string: manual.contains(":") ? "http://\(manual)" : "http://\(manual):1400") {
-                candidates.append(url)
-            }
             if let anchor { candidates.append(anchor) }
             var anchorWorks = false
             if let first = candidates.first {
@@ -224,6 +223,30 @@ final class SonosStore {
             selectedGroupID = containing.id
         } else {
             selectedGroupID = new.first(where: { nowPlaying[$0.id]?.transport == .playing })?.id ?? new.first?.id
+        }
+    }
+
+    /// Reads the product of every speaker whose model isn't known yet.
+    func loadSpeakerModels() async {
+        let missing = allPlayers.flatMap(\.speakers).filter { speakerModels[$0.id] == nil }
+
+        await withTaskGroup(of: (SonosSpeaker, Result<SpeakerModel, Error>).self) { tasks in
+            for speaker in missing {
+                tasks.addTask { [client] in
+                    do {
+                        return (speaker, .success(try await client.model(of: speaker)))
+                    } catch {
+                        return (speaker, .failure(error))
+                    }
+                }
+            }
+
+            for await (speaker, result) in tasks {
+                switch result {
+                case let .success(model): speakerModels[speaker.id] = model
+                case let .failure(error): log.error("Speaker model for \(speaker.host): \(error.localizedDescription)")
+                }
+            }
         }
     }
 

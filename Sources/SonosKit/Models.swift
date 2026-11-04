@@ -7,14 +7,54 @@ public struct SonosPlayer: Identifiable, Hashable, Sendable {
     public let roomName: String
     /// `http://<ip>:1400`
     public let baseURL: URL
+    /// The physical speakers making up the room, this player first: one for
+    /// a single speaker, more for a stereo pair or a home theater.
+    public let speakers: [SonosSpeaker]
 
-    public init(id: String, roomName: String, baseURL: URL) {
+    public init(id: String, roomName: String, baseURL: URL, speakers: [SonosSpeaker]) {
         self.id = id
         self.roomName = roomName
         self.baseURL = baseURL
+        self.speakers = speakers
     }
 
     public var host: String { baseURL.host ?? "?" }
+}
+
+/// One physical speaker within a room.
+public struct SonosSpeaker: Identifiable, Hashable, Sendable {
+    public enum Role: Sendable {
+        case left, right, sub, surroundLeft, surroundRight
+    }
+
+    /// The speaker's UUID, e.g. `RINCON_000E58XXXXXX01400`.
+    public let id: String
+    /// `http://<ip>:1400`
+    public let baseURL: URL
+    /// Nil when the speaker plays the whole room's sound: a single speaker,
+    /// or the main unit of a home theater.
+    public let role: Role?
+
+    public init(id: String, baseURL: URL, role: Role?) {
+        self.id = id
+        self.baseURL = baseURL
+        self.role = role
+    }
+
+    public var host: String { baseURL.host ?? "?" }
+}
+
+/// A speaker's product, as reported in its device description.
+public struct SpeakerModel: Hashable, Sendable {
+    /// The product name, e.g. "Play:1" or "Era 100".
+    public let name: String
+    /// A small product picture served by the speaker itself.
+    public let iconURL: URL?
+
+    public init(name: String, iconURL: URL?) {
+        self.name = name
+        self.iconURL = iconURL
+    }
 }
 
 /// A group of players that play in sync. Commands go to the coordinator.

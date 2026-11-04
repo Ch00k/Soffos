@@ -55,7 +55,7 @@ extension QueueView {
         guard let first = sonos.queue.first?.position, let last = sonos.queue.last?.position,
               sonos.queue.count < total
         else { return total == 1 ? "1 track" : "\(total) tracks" }
-        return "\(first)–\(last) of \(total) tracks"
+        return "\(first)-\(last) of \(total) tracks"
     }
 }
 
