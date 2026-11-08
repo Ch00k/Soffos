@@ -66,11 +66,12 @@ public struct SOAPClient: Sendable {
         _ base: URL,
         _ service: SonosService,
         _ action: String,
-        _ arguments: KeyValuePairs<String, String> = [:]
+        _ arguments: KeyValuePairs<String, String> = [:],
+        timeout: TimeInterval = 6
     ) async throws -> [String: String] {
         var request = URLRequest(url: base.appendingPathComponent(service.controlPath))
         request.httpMethod = "POST"
-        request.timeoutInterval = 6
+        request.timeoutInterval = timeout
         request.setValue("text/xml; charset=\"utf-8\"", forHTTPHeaderField: "Content-Type")
         request.setValue("\"\(service.urn)#\(action)\"", forHTTPHeaderField: "SOAPACTION")
         request.httpBody = Data(Self.envelope(service: service, action: action, arguments: arguments).utf8)

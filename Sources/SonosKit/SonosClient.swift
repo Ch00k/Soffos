@@ -180,6 +180,9 @@ public struct SonosClient: Sendable {
 
     /// Adds a URI to the queue. `position` 0 appends. Returns the 1-based
     /// position of the first added track and how many tracks were added.
+    /// The speaker answers only after it has fetched every track of an album
+    /// or playlist from the music service, which for large playlists takes
+    /// longer than the usual timeout.
     @discardableResult
     public func addToQueue(
         _ coordinator: SonosPlayer,
@@ -194,7 +197,7 @@ public struct SonosClient: Sendable {
             "EnqueuedURIMetaData": metadata,
             "DesiredFirstTrackNumberEnqueued": String(position),
             "EnqueueAsNext": asNext ? "1" : "0",
-        ])
+        ], timeout: 60)
         return (Int(out["FirstTrackNumberEnqueued"] ?? "") ?? 1, Int(out["NumTracksAdded"] ?? "") ?? 1)
     }
 }
