@@ -171,6 +171,16 @@ struct PanelToggle: View {
     }
 }
 
+/// An empty toolbar item for a screen without toolbar items of its own.
+/// SwiftUI removes the toolbar from such a screen, and the window falls back
+/// to a thinner title bar with the title centred. At the trailing end the
+/// item leaves the title where the other screens put it.
+struct ToolbarPlaceholder: ToolbarContent {
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) { Color.clear.frame(width: 0, height: 0) }
+    }
+}
+
 /// The translucent sidebar background used by native split views.
 private struct SidebarMaterial: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
@@ -210,6 +220,7 @@ struct SpotifyGate<Content: View>: View {
                         .buttonStyle(.borderedProminent)
                 }
             }
+            .toolbar { ToolbarPlaceholder() }
         }
     }
 }

@@ -33,6 +33,7 @@ final class MainWindow {
     @ObservationIgnored private var toggles: [Panel: (view: NSView, buttonWidth: CGFloat)] = [:]
     @ObservationIgnored private var resizeObserver: NSObjectProtocol?
     @ObservationIgnored private var toolbarObserver: NSObjectProtocol?
+    @ObservationIgnored private var toolbarInstallObserver: NSKeyValueObservation?
 
     /// The toolbar search fields' width. AppKit would otherwise resize them
     /// as the window resizes, so they wobble while a panel animates. Fits
@@ -60,23 +61,47 @@ final class MainWindow {
             MainActor.assumeIsolated { self?.updateToggleWidths() }
         }
         // The accessories' positions are known only after the title bar's
-        // first layout.
+        // first layout, and they move when SwiftUI installs the toolbar,
+        // which can happen after that.
         DispatchQueue.main.async { [weak self] in self?.updateToggleWidths() }
+        watchSearchFields(in: window.toolbar)
+        toolbarInstallObserver = window.observe(\.toolbar) { [weak self] window, _ in
+            MainActor.assumeIsolated {
+                window.layoutIfNeeded()
+                self?.updateToggleWidths()
+                self?.watchSearchFields(in: window.toolbar)
+            }
+        }
+    }
 
-        // SwiftUI adds a screen's search field to the toolbar when the
-        // screen appears.
-        window.toolbar?.items.forEach(Self.fixSearchFieldWidth)
+    /// Fixes the width of the toolbar's search fields, present and future:
+    /// SwiftUI adds a screen's search field to the toolbar when the screen
+    /// appears.
+    private func watchSearchFields(in toolbar: NSToolbar?) {
+        if let toolbarObserver { NotificationCenter.default.removeObserver(toolbarObserver) }
+        toolbarObserver = nil
+        guard let toolbar else { return }
+
+        toolbar.items.forEach(Self.fixSearchFieldWidth)
         toolbarObserver = NotificationCenter.default.addObserver(
-            forName: NSToolbar.willAddItemNotification, object: window.toolbar, queue: .main
+            forName: NSToolbar.willAddItemNotification, object: toolbar, queue: .main
         ) { note in
             guard let item = note.userInfo?["item"] as? NSToolbarItem else { return }
             MainActor.assumeIsolated { Self.fixSearchFieldWidth(item) }
         }
     }
 
+    /// Identifies the width constraint, so a field that is seen again (its
+    /// toolbar installed again, or the item added again) keeps just one.
+    private static let searchFieldWidthID = "searchFieldWidth"
+
     private static func fixSearchFieldWidth(_ item: NSToolbarItem) {
-        guard let field = (item as? NSSearchToolbarItem)?.searchField else { return }
-        field.widthAnchor.constraint(equalToConstant: searchFieldWidth).isActive = true
+        guard let field = (item as? NSSearchToolbarItem)?.searchField,
+              !field.constraints.contains(where: { $0.identifier == searchFieldWidthID }) else { return }
+
+        let width = field.widthAnchor.constraint(equalToConstant: searchFieldWidth)
+        width.identifier = searchFieldWidthID
+        width.isActive = true
     }
 
     private func addToggle(_ panel: Panel, at edge: NSLayoutConstraint.Attribute, to window: NSWindow) {

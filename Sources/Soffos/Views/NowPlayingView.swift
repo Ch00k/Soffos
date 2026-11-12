@@ -42,6 +42,7 @@ struct NowPlayingView: View {
             }
         }
         .navigationTitle(sonos.selectedGroup?.name ?? "Now Playing")
+        .toolbar { ToolbarPlaceholder() }
     }
 
     @ViewBuilder private var emptyState: some View {
