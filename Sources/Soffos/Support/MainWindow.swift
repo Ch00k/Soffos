@@ -65,7 +65,10 @@ final class MainWindow {
         // which can happen after that.
         DispatchQueue.main.async { [weak self] in self?.updateToggleWidths() }
         watchSearchFields(in: window.toolbar)
-        toolbarInstallObserver = window.observe(\.toolbar) { [weak self] window, _ in
+        toolbarInstallObserver = window.observe(\.toolbar, options: [.old, .new]) { [weak self] window, change in
+            // Setting the same toolbar again changes nothing, and would give
+            // its search fields a second width constraint.
+            guard change.oldValue ?? nil !== change.newValue ?? nil else { return }
             MainActor.assumeIsolated {
                 window.layoutIfNeeded()
                 self?.updateToggleWidths()
