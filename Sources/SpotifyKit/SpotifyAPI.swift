@@ -14,8 +14,8 @@ public enum SpotifyAPIError: Error, LocalizedError {
 /// search, library, playlists, albums and artists.
 ///
 /// Works within Spotify's Development Mode limits: search is capped at 10
-/// results per type, playlist contents come from `/items`, and only playlists
-/// the user owns return their tracks.
+/// results per type, an artist's albums at 10 per page, playlist contents
+/// come from `/items`, and only playlists the user owns return their tracks.
 public struct SpotifyAPI: Sendable {
     public static let scopes = [
         "user-read-private",
@@ -100,7 +100,7 @@ public struct SpotifyAPI: Sendable {
     }
 
     public func artistAlbums(_ id: String, offset: Int = 0) async throws -> Paging<SpotifyAlbum> {
-        try await get("artists/\(id)/albums", ["include_groups": "album,single,compilation", "limit": "50", "offset": String(offset)])
+        try await get("artists/\(id)/albums", ["include_groups": "album,single,compilation", "limit": "10", "offset": String(offset)])
     }
 
     /// Appends tracks to a playlist the user owns or collaborates on.
