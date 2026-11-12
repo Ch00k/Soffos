@@ -42,6 +42,10 @@ struct NowPlayingView: View {
             }
         }
         .navigationTitle(sonos.selectedGroup?.name ?? "Now Playing")
+        // An empty item keeps the toolbar, and so the title bar's height,
+        // which SwiftUI removes from a screen without toolbar items. At the
+        // trailing end it leaves the title where the other screens put it.
+        .toolbar { ToolbarItem(placement: .primaryAction) { Color.clear.frame(width: 0, height: 0) } }
     }
 
     @ViewBuilder private var emptyState: some View {

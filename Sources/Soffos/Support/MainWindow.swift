@@ -33,6 +33,7 @@ final class MainWindow {
     @ObservationIgnored private var toggles: [Panel: (view: NSView, buttonWidth: CGFloat)] = [:]
     @ObservationIgnored private var resizeObserver: NSObjectProtocol?
     @ObservationIgnored private var toolbarObserver: NSObjectProtocol?
+    @ObservationIgnored private var toolbarInstallObserver: NSKeyValueObservation?
 
     /// The toolbar search fields' width. AppKit would otherwise resize them
     /// as the window resizes, so they wobble while a panel animates. Fits
@@ -60,8 +61,15 @@ final class MainWindow {
             MainActor.assumeIsolated { self?.updateToggleWidths() }
         }
         // The accessories' positions are known only after the title bar's
-        // first layout.
+        // first layout, and they move when SwiftUI installs the toolbar,
+        // which can happen after that.
         DispatchQueue.main.async { [weak self] in self?.updateToggleWidths() }
+        toolbarInstallObserver = window.observe(\.toolbar) { [weak self] window, _ in
+            MainActor.assumeIsolated {
+                window.layoutIfNeeded()
+                self?.updateToggleWidths()
+            }
+        }
 
         // SwiftUI adds a screen's search field to the toolbar when the
         // screen appears.
