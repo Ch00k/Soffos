@@ -65,10 +65,7 @@ final class MainWindow {
         // which can happen after that.
         DispatchQueue.main.async { [weak self] in self?.updateToggleWidths() }
         watchSearchFields(in: window.toolbar)
-        toolbarInstallObserver = window.observe(\.toolbar, options: [.old, .new]) { [weak self] window, change in
-            // Setting the same toolbar again changes nothing, and would give
-            // its search fields a second width constraint.
-            guard change.oldValue ?? nil !== change.newValue ?? nil else { return }
+        toolbarInstallObserver = window.observe(\.toolbar) { [weak self] window, _ in
             MainActor.assumeIsolated {
                 window.layoutIfNeeded()
                 self?.updateToggleWidths()
@@ -94,9 +91,17 @@ final class MainWindow {
         }
     }
 
+    /// Identifies the width constraint, so a field that is seen again (its
+    /// toolbar installed again, or the item added again) keeps just one.
+    private static let searchFieldWidthID = "searchFieldWidth"
+
     private static func fixSearchFieldWidth(_ item: NSToolbarItem) {
-        guard let field = (item as? NSSearchToolbarItem)?.searchField else { return }
-        field.widthAnchor.constraint(equalToConstant: searchFieldWidth).isActive = true
+        guard let field = (item as? NSSearchToolbarItem)?.searchField,
+              !field.constraints.contains(where: { $0.identifier == searchFieldWidthID }) else { return }
+
+        let width = field.widthAnchor.constraint(equalToConstant: searchFieldWidth)
+        width.identifier = searchFieldWidthID
+        width.isActive = true
     }
 
     private func addToggle(_ panel: Panel, at edge: NSLayoutConstraint.Attribute, to window: NSWindow) {
