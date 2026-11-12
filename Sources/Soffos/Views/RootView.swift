@@ -47,16 +47,19 @@ struct RootView: View {
                         detail
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .navigationDestination(for: Route.self) { route in
-                                switch route {
-                                case let .album(album): AlbumDetailView(albumID: album.id, initial: album)
-                                case let .albumID(id, _): AlbumDetailView(albumID: id, initial: nil)
-                                case let .playlist(playlist): PlaylistDetailView(playlist: playlist)
-                                case let .artist(id, name): ArtistDetailView(artistID: id, name: name)
+                                Group {
+                                    switch route {
+                                    case let .album(album): AlbumDetailView(albumID: album.id, initial: album)
+                                    case let .albumID(id, _): AlbumDetailView(albumID: id, initial: nil)
+                                    case let .playlist(playlist): PlaylistDetailView(playlist: playlist)
+                                    case let .artist(id, name): ArtistDetailView(artistID: id, name: name)
+                                    }
                                 }
+                                .navigationBarBackButtonHidden()
                             }
                     }
                     .frame(width: widths.main)
-                    .toolbar { panelButtons }
+                    .toolbar { backButton }
 
                     if widths.queue > 0 {
                         QueueView()
@@ -100,13 +103,14 @@ struct RootView: View {
         }
     }
 
-    /// The sidebar toggle at the leading end of the toolbar. The queue toggle
-    /// is a title bar accessory (see `MainWindow.attach`).
-    private var panelButtons: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            PanelButton(symbol: "sidebar.left", isOn: window.showSidebar,
-                        help: window.showSidebar ? "Hide the sidebar" : "Show the sidebar") {
-                window.toggle(.sidebar)
+    /// Replaces the stack's own back button, which SwiftUI places before
+    /// everything else in the title bar, so it sits after the sidebar toggle.
+    @ToolbarContentBuilder private var backButton: some ToolbarContent {
+        if !path.isEmpty {
+            ToolbarItem(placement: .navigation) {
+                Button { path.removeLast() } label: { Label("Back", systemImage: "chevron.left") }
+                    .help("Back")
+                    .keyboardShortcut("[", modifiers: .command)
             }
         }
     }
@@ -125,8 +129,7 @@ struct RootView: View {
 }
 
 /// A panel toggle drawn like a toolbar button: a rounded highlight on hover,
-/// and an accent-coloured symbol while its panel is open. Both toggles use it,
-/// so the one in the toolbar and the one in the title bar accessory match.
+/// and an accent-coloured symbol while its panel is open.
 private struct PanelButton: View {
     let symbol: String
     let isOn: Bool
@@ -150,16 +153,21 @@ private struct PanelButton: View {
     }
 }
 
-/// The queue toggle, shown at the right end of the title bar.
-struct QueueToggle: View {
+/// A panel toggle in a title bar accessory: the sidebar's at the left end of
+/// the title bar, the queue's at the right end.
+struct PanelToggle: View {
+    let panel: MainWindow.Panel
     let window: MainWindow
 
     var body: some View {
-        PanelButton(symbol: "list.bullet", isOn: window.showQueue,
-                    help: window.showQueue ? "Hide the queue" : "Show the queue") {
-            window.toggle(.queue)
+        let isOn = panel == .sidebar ? window.showSidebar : window.showQueue
+        let name = panel == .sidebar ? "sidebar" : "queue"
+        PanelButton(symbol: panel == .sidebar ? "sidebar.left" : "list.bullet", isOn: isOn,
+                    help: isOn ? "Hide the \(name)" : "Show the \(name)") {
+            window.toggle(panel)
         }
         .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, alignment: panel == .sidebar ? .leading : .trailing)
     }
 }
 
