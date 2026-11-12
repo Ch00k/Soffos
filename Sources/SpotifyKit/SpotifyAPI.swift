@@ -109,10 +109,12 @@ public struct SpotifyAPI: Sendable {
         _ = try await send("POST", "playlists/\(playlistID)/items", body: body)
     }
 
-    /// Loads every page of a paged endpoint, up to `cap` items.
+    /// Loads every page of a paged endpoint, up to `cap` items, handing the
+    /// items loaded so far to `loaded` after each page.
     public func all<Item>(
         cap: Int = 2000,
         isolation: isolated (any Actor)? = #isolation,
+        loaded: ([Item]) -> Void = { _ in },
         _ page: (Int) async throws -> Paging<Item>
     ) async throws -> [Item] {
         var items: [Item] = []
@@ -120,6 +122,7 @@ public struct SpotifyAPI: Sendable {
         while true {
             let p = try await page(offset)
             items += p.items
+            loaded(items)
             offset = p.offset + p.limit
             if p.next == nil || p.items.isEmpty || items.count >= cap { return items }
         }

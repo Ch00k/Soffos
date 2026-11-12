@@ -159,12 +159,20 @@ struct ArtistDetailView: View {
         .navigationTitle(name)
         .task(id: artistID) {
             do {
-                async let a = spotify.api.artist(artistID)
-                async let list = spotify.api.all(cap: 200) { try await spotify.api.artistAlbums(artistID, offset: $0) }
-                artist = try await a
-                albums = try await list
+                artist = try await spotify.api.artist(artistID)
             } catch {
-                albums = []
+                spotify.lastError = error.localizedDescription
+            }
+        }
+        // Spotify returns an artist's albums 10 at a time, so they're shown
+        // as each page arrives.
+        .task(id: artistID) {
+            do {
+                _ = try await spotify.api.all(cap: 200, loaded: { albums = $0 }) {
+                    try await spotify.api.artistAlbums(artistID, offset: $0)
+                }
+            } catch {
+                albums = albums ?? []
                 spotify.lastError = error.localizedDescription
             }
         }

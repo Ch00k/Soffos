@@ -117,7 +117,8 @@ struct CollectionHeader: View {
     }
 }
 
-/// "Play" (in order) and "Shuffle" buttons. Both replace the queue.
+/// "Play" (in order) and "Shuffle" buttons. Both replace the queue, so
+/// they're disabled while the room's queue is still being filled.
 struct PlayShuffleButtons: View {
     @Environment(SonosStore.self) private var sonos
     let play: (_ shuffled: Bool) async -> Void
@@ -139,7 +140,7 @@ struct PlayShuffleButtons: View {
             .buttonStyle(.bordered)
         }
         .controlSize(.large)
-        .disabled(sonos.selectedGroup == nil)
+        .disabled(sonos.selectedGroup == nil || sonos.queueingTitle != nil)
         .help(sonos.selectedGroup.map { "Replaces the queue in \($0.name)" } ?? "Pick a room first")
     }
 }
@@ -250,8 +251,11 @@ struct MediaCard: View {
         .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hovering = h } }
         .contextMenu {
             if uri != nil {
-                Button("Play", systemImage: "play.fill") { Task { await play(shuffled: false) } }
-                Button("Shuffle", systemImage: "shuffle") { Task { await play(shuffled: true) } }
+                Group {
+                    Button("Play", systemImage: "play.fill") { Task { await play(shuffled: false) } }
+                    Button("Shuffle", systemImage: "shuffle") { Task { await play(shuffled: true) } }
+                }
+                .disabled(sonos.queueingTitle != nil)
             }
         }
     }
