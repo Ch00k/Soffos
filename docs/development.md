@@ -21,9 +21,11 @@ control the same speakers.
 Dev builds are signed with "Soffos Dev Signing", a self-signed certificate that `build.sh` creates the first time it
 runs on a machine, in a keychain of its own (`~/Library/Keychains/soffos-dev.keychain-db`, added to the keychain search
 list). Every rebuild is signed with the same certificate, so the Local Network access granted to one build carries over
-to the next. Keychain access may not: macOS can tie a saved item to the exact binary of an app without a Team ID, and
-then asks again after a rebuild. The keychain has a fixed password that `build.sh` uses to unlock it, so signing never shows a
-password dialog. To start over with a new certificate, run `security delete-keychain soffos-dev.keychain-db`.
+to the next. Keychain access would not: macOS ties a saved item to the exact binary of an app without a Team ID, and
+asks for the keychain password again after a rebuild. Dev builds therefore keep their Spotify tokens in
+`~/Library/Application Support/Soffos Dev/spotify-tokens.json` (mode 0600); release builds use the login Keychain. The
+signing keychain has a fixed password that `build.sh` uses to unlock it, so signing never shows a password dialog. To
+start over with a new certificate, run `security delete-keychain soffos-dev.keychain-db`.
 `SIGNING_IDENTITY` names a different certificate to sign with.
 
 ## Logs
@@ -51,6 +53,6 @@ done && iconutil -c icns $name.iconset -o $name.icns && rm -r $name.iconset; don
 
 ```
 Sources/SonosKit/    UPnP/SOAP client, SSDP discovery, topology/DIDL parsing, Spotify-to-Sonos queue entries
-Sources/SpotifyKit/  Spotify Web API client, PKCE auth, Keychain token storage
+Sources/SpotifyKit/  Spotify Web API client, PKCE auth, token storage (Keychain or file)
 Sources/Soffos/      SwiftUI app: stores, views, settings
 ```

@@ -56,17 +56,17 @@ public struct PKCE: Sendable {
 }
 
 /// Owns the tokens: refreshes them when they're about to expire and
-/// persists them in the login Keychain.
+/// persists them in `storage`.
 public actor SpotifyTokenStore {
-    private let keychainService: String
+    private let storage: TokenStorage
     private var tokens: SpotifyTokens?
     private var refreshTask: Task<SpotifyTokens, Error>?
     private let session: URLSession
 
-    public init(keychainService: String, session: URLSession = .shared) {
-        self.keychainService = keychainService
+    public init(storage: TokenStorage, session: URLSession = .shared) {
+        self.storage = storage
         self.session = session
-        tokens = Keychain.read(service: keychainService).flatMap { try? JSONDecoder().decode(SpotifyTokens.self, from: $0) }
+        tokens = storage.read().flatMap { try? JSONDecoder().decode(SpotifyTokens.self, from: $0) }
     }
 
     public var isSignedIn: Bool { tokens != nil }
@@ -116,13 +116,13 @@ public actor SpotifyTokenStore {
 
     public func signOut() {
         tokens = nil
-        Keychain.delete(service: keychainService)
+        storage.delete()
     }
 
     private func store(_ new: SpotifyTokens) {
         tokens = new
         if let data = try? JSONEncoder().encode(new) {
-            Keychain.write(data, service: keychainService)
+            storage.write(data)
         }
     }
 
@@ -153,8 +153,38 @@ public actor SpotifyTokenStore {
     }
 }
 
-enum Keychain {
-    static func read(service: String) -> Data? {
+/// Where the tokens are persisted.
+public enum TokenStorage: Sendable {
+    /// A generic password in the login Keychain.
+    case keychain(service: String)
+    /// A JSON file readable only by the user.
+    case file(URL)
+
+    func read() -> Data? {
+        switch self {
+        case let .keychain(service): Self.keychainRead(service: service)
+        case let .file(url): try? Data(contentsOf: url)
+        }
+    }
+
+    func write(_ data: Data) {
+        switch self {
+        case let .keychain(service):
+            Self.keychainWrite(data, service: service)
+        case let .file(url):
+            try? data.write(to: url, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        }
+    }
+
+    func delete() {
+        switch self {
+        case let .keychain(service): Self.keychainDelete(service: service)
+        case let .file(url): try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    private static func keychainRead(service: String) -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -166,8 +196,8 @@ enum Keychain {
         return result as? Data
     }
 
-    static func write(_ data: Data, service: String) {
-        delete(service: service)
+    private static func keychainWrite(_ data: Data, service: String) {
+        keychainDelete(service: service)
         let attributes: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -177,7 +207,7 @@ enum Keychain {
         SecItemAdd(attributes as CFDictionary, nil)
     }
 
-    static func delete(service: String) {
+    private static func keychainDelete(service: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
