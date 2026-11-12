@@ -122,7 +122,7 @@ struct LikedSongsView: View {
     private func queueAll(_ tracks: [SpotifyTrack], shuffled: Bool) async {
         let playable = tracks.filter(\.isPlayable).map { (uri: $0.uri, title: $0.name) }
         let picked = shuffled ? Array(playable.shuffled().prefix(100)) : Array(playable.prefix(100))
-        await sonos.playTracks(picked, shuffled: shuffled)
+        await sonos.playTracks(picked, title: "Liked Songs", shuffled: shuffled)
     }
 }
 
