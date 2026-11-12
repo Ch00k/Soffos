@@ -24,7 +24,12 @@ final class SpotifyStore {
     private(set) var likedSongs: [SpotifyTrack]?
     private(set) var recent: [SpotifyTrack]?
 
-    let tokens = SpotifyTokenStore(keychainService: "\(AppIdentity.bundleID).spotify")
+    /// Dev builds keep the tokens in a file: each rebuild changes the binary
+    /// a Keychain item is tied to (the dev certificate has no Team ID), and
+    /// macOS then asks for the keychain password.
+    let tokens = SpotifyTokenStore(storage: AppIdentity.isDev
+        ? .file(AppIdentity.supportDirectory.appendingPathComponent("spotify-tokens.json"))
+        : .keychain(service: "\(AppIdentity.bundleID).spotify"))
     private let settings: AppSettings
     private let log: AppLog
     @ObservationIgnored private var authSession: ASWebAuthenticationSession?

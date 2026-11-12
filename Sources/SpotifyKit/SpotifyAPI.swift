@@ -14,8 +14,8 @@ public enum SpotifyAPIError: Error, LocalizedError {
 /// search, library, playlists, albums and artists.
 ///
 /// Works within Spotify's Development Mode limits: search is capped at 10
-/// results per type, playlist contents come from `/items`, and only playlists
-/// the user owns return their tracks.
+/// results per type, an artist's albums at 10 per page, playlist contents
+/// come from `/items`, and only playlists the user owns return their tracks.
 public struct SpotifyAPI: Sendable {
     public static let scopes = [
         "user-read-private",
@@ -100,7 +100,7 @@ public struct SpotifyAPI: Sendable {
     }
 
     public func artistAlbums(_ id: String, offset: Int = 0) async throws -> Paging<SpotifyAlbum> {
-        try await get("artists/\(id)/albums", ["include_groups": "album,single,compilation", "limit": "50", "offset": String(offset)])
+        try await get("artists/\(id)/albums", ["include_groups": "album,single,compilation", "limit": "10", "offset": String(offset)])
     }
 
     /// Appends tracks to a playlist the user owns or collaborates on.
@@ -109,10 +109,12 @@ public struct SpotifyAPI: Sendable {
         _ = try await send("POST", "playlists/\(playlistID)/items", body: body)
     }
 
-    /// Loads every page of a paged endpoint, up to `cap` items.
+    /// Loads every page of a paged endpoint, up to `cap` items, handing the
+    /// items loaded so far to `loaded` after each page.
     public func all<Item>(
         cap: Int = 2000,
         isolation: isolated (any Actor)? = #isolation,
+        loaded: ([Item]) -> Void = { _ in },
         _ page: (Int) async throws -> Paging<Item>
     ) async throws -> [Item] {
         var items: [Item] = []
@@ -120,6 +122,7 @@ public struct SpotifyAPI: Sendable {
         while true {
             let p = try await page(offset)
             items += p.items
+            loaded(items)
             offset = p.offset + p.limit
             if p.next == nil || p.items.isEmpty || items.count >= cap { return items }
         }

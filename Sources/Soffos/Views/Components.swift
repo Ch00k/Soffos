@@ -117,7 +117,8 @@ struct CollectionHeader: View {
     }
 }
 
-/// "Play" (in order) and "Shuffle" buttons. Both replace the queue.
+/// "Play" (in order) and "Shuffle" buttons. Both replace the queue, so
+/// they're disabled while the room's queue is still being filled.
 struct PlayShuffleButtons: View {
     @Environment(SonosStore.self) private var sonos
     let play: (_ shuffled: Bool) async -> Void
@@ -139,7 +140,7 @@ struct PlayShuffleButtons: View {
             .buttonStyle(.bordered)
         }
         .controlSize(.large)
-        .disabled(sonos.selectedGroup == nil)
+        .disabled(sonos.selectedGroup == nil || sonos.queueingTitle != nil)
         .help(sonos.selectedGroup.map { "Replaces the queue in \($0.name)" } ?? "Pick a room first")
     }
 }
@@ -223,7 +224,7 @@ struct MediaCard: View {
                 ZStack(alignment: .bottomTrailing) {
                     Artwork(url: imageURL, cornerRadius: circular ? 1000 : 8, placeholder: circular ? "music.mic" : "music.note")
                         .shadow(color: .black.opacity(hovering ? 0.25 : 0.1), radius: hovering ? 8 : 3, y: 2)
-                    if hovering, uri != nil, sonos.selectedGroup != nil {
+                    if hovering, uri != nil, sonos.selectedGroup != nil, sonos.queueingTitle == nil {
                         HStack(spacing: 6) {
                             cardButton("shuffle", help: "Shuffle") { await play(shuffled: true) }
                             cardButton("play.fill", help: "Play") { await play(shuffled: false) }
@@ -250,8 +251,11 @@ struct MediaCard: View {
         .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hovering = h } }
         .contextMenu {
             if uri != nil {
-                Button("Play", systemImage: "play.fill") { Task { await play(shuffled: false) } }
-                Button("Shuffle", systemImage: "shuffle") { Task { await play(shuffled: true) } }
+                Group {
+                    Button("Play", systemImage: "play.fill") { Task { await play(shuffled: false) } }
+                    Button("Shuffle", systemImage: "shuffle") { Task { await play(shuffled: true) } }
+                }
+                .disabled(sonos.queueingTitle != nil)
             }
         }
     }

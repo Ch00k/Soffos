@@ -11,14 +11,19 @@ struct QueueView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Queue").font(.headline)
-                    Text(queueSummary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        if sonos.queueingTitle != nil {
+                            ProgressView().controlSize(.mini)
+                        }
+                        Text(queueSummary).lineLimit(1)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button("Clear") { confirmClear = true }
                     .controlSize(.small)
-                    .disabled(sonos.queue.isEmpty)
+                    .disabled(sonos.queue.isEmpty || sonos.queueingTitle != nil)
                     .confirmationDialog("Clear the queue?", isPresented: $confirmClear) {
                         Button("Clear Queue", role: .destructive) { Task { await sonos.clearQueue() } }
                     }
@@ -28,8 +33,25 @@ struct QueueView: View {
             Divider()
 
             if sonos.queue.isEmpty {
-                ContentUnavailableView("Queue Is Empty", systemImage: "list.bullet",
-                                       description: Text("Right-click any Spotify track, album or playlist to add it."))
+                Group {
+                    if sonos.queueingTitle != nil {
+                        ProgressView()
+                    } else {
+                        VStack(spacing: 6) {
+                            Image(systemName: "list.bullet")
+                                .font(.title2)
+                                .foregroundStyle(.tertiary)
+                                .padding(.bottom, 4)
+                            Text("Queue Is Empty").font(.headline)
+                            Text("Play an album or playlist to fill it.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 // Starts at the current track; no auto-scrolling.
                 List(sonos.queue) { item in
@@ -51,6 +73,7 @@ struct QueueView: View {
 
 extension QueueView {
     private var queueSummary: String {
+        if let title = sonos.queueingTitle { return "Adding “\(title)”" }
         let total = sonos.queueTotal
         guard let first = sonos.queue.first?.position, let last = sonos.queue.last?.position,
               sonos.queue.count < total

@@ -91,6 +91,12 @@ final class SonosStore {
     }
     private(set) var queue: [QueueItem] = []
     private(set) var queueTotal = 0
+    /// Titles of what is being added to each group's queue, by group ID. A
+    /// large playlist takes the speaker up to a minute to add. A group takes
+    /// one play at a time: a second one would clear the queue while the
+    /// first is still adding to it.
+    private(set) var queueingTitles: [String: String] = [:]
+    var queueingTitle: String? { selectedGroupID.flatMap { queueingTitles[$0] } }
     private(set) var memberVolumes: [String: Int] = [:]
     var lastError: String?
 
@@ -635,10 +641,14 @@ final class SonosStore {
     /// Replaces the queue with a Spotify album or playlist and plays it,
     /// either in order from the first track or shuffled from a random track.
     func playCollection(uri: String, title: String, shuffled: Bool) async {
-        guard let coordinator = selectedGroup?.coordinator else {
+        guard let groupID = selectedGroupID, let coordinator = selectedGroup?.coordinator else {
             lastError = "Pick a room first."
             return
         }
+        guard queueingTitles[groupID] == nil else { return }
+        queueingTitles[groupID] = title
+        defer { queueingTitles[groupID] = nil }
+
         do {
             try await client.clearQueue(coordinator)
             let result = try await client.enqueueSpotify(uri, title: title, on: coordinator, preferredRegion: settings.spotifyRegion)
@@ -659,8 +669,13 @@ final class SonosStore {
 
     /// Replaces the queue with individual tracks (for lists Sonos can't expand
     /// itself, like Liked Songs). Starts playing after the first one is queued.
-    func playTracks(_ tracks: [(uri: String, title: String)], shuffled: Bool) async {
-        guard let coordinator = selectedGroup?.coordinator, !tracks.isEmpty else { return }
+    func playTracks(_ tracks: [(uri: String, title: String)], title: String, shuffled: Bool) async {
+        guard let groupID = selectedGroupID, let coordinator = selectedGroup?.coordinator, !tracks.isEmpty,
+              queueingTitles[groupID] == nil
+        else { return }
+        queueingTitles[groupID] = title
+        defer { queueingTitles[groupID] = nil }
+
         let ordered = shuffled ? tracks.shuffled() : tracks
         var region = settings.spotifyRegion
         do {

@@ -29,6 +29,17 @@ final class MainWindow {
 
     @ObservationIgnored private weak var window: NSWindow?
     @ObservationIgnored private let closeToDock = CloseToDock()
+    /// Each toggle's accessory view and the width of its button.
+    @ObservationIgnored private var toggles: [Panel: (view: NSView, buttonWidth: CGFloat)] = [:]
+    @ObservationIgnored private var resizeObserver: NSObjectProtocol?
+    @ObservationIgnored private var toolbarObserver: NSObjectProtocol?
+
+    /// The toolbar search fields' width. AppKit would otherwise resize them
+    /// as the window resizes, so they wobble while a panel animates. Fits
+    /// Liked Songs (the longest title with a search field) at the minimum
+    /// width with both panels closed, focused or not; 238 pushes its refresh
+    /// button into the overflow menu.
+    static let searchFieldWidth: CGFloat = 230
 
     func attach(_ window: NSWindow) {
         guard self.window !== window else { return }
@@ -37,20 +48,70 @@ final class MainWindow {
         // Restores the saved frame now and saves it on every move and resize.
         window.setFrameAutosaveName("Main")
 
-        // The accessory stays at the window's right edge, after the
-        // toolbar's search field, and never moves into the overflow menu.
-        let queueToggle = NSHostingView(rootView: QueueToggle(window: self))
-        queueToggle.frame.size = queueToggle.fittingSize
+        // The toggles are title bar accessories pinned to the window's
+        // edges, so toolbar items (back button, search field) never move
+        // them or push them into the overflow menu. Each accessory spans its
+        // open panel, which keeps the toolbar items above the main pane.
+        addToggle(.sidebar, at: .left, to: window)
+        addToggle(.queue, at: .right, to: window)
+        resizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification, object: window, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateToggleWidths() }
+        }
+        // The accessories' positions are known only after the title bar's
+        // first layout.
+        DispatchQueue.main.async { [weak self] in self?.updateToggleWidths() }
+
+        // SwiftUI adds a screen's search field to the toolbar when the
+        // screen appears.
+        window.toolbar?.items.forEach(Self.fixSearchFieldWidth)
+        toolbarObserver = NotificationCenter.default.addObserver(
+            forName: NSToolbar.willAddItemNotification, object: window.toolbar, queue: .main
+        ) { note in
+            guard let item = note.userInfo?["item"] as? NSToolbarItem else { return }
+            MainActor.assumeIsolated { Self.fixSearchFieldWidth(item) }
+        }
+    }
+
+    private static func fixSearchFieldWidth(_ item: NSToolbarItem) {
+        guard let field = (item as? NSSearchToolbarItem)?.searchField else { return }
+        field.widthAnchor.constraint(equalToConstant: searchFieldWidth).isActive = true
+    }
+
+    private func addToggle(_ panel: Panel, at edge: NSLayoutConstraint.Attribute, to window: NSWindow) {
+        let toggle = NSHostingView(rootView: PanelToggle(panel: panel, window: self))
+        toggle.frame.size = toggle.fittingSize
+        // From here on `updateToggleWidths` sets the size. Without sizing
+        // options `fittingSize` is zero, so the button's width is kept.
+        toggle.sizingOptions = []
         let accessory = NSTitlebarAccessoryViewController()
-        accessory.layoutAttribute = .right
-        accessory.view = queueToggle
+        accessory.layoutAttribute = edge
+        accessory.view = toggle
         window.addTitlebarAccessoryViewController(accessory)
+        toggles[panel] = (toggle, toggle.frame.width)
+    }
+
+    /// Widens each toggle's accessory to reach the inner edge of its panel
+    /// at the given window width (the current one by default). The accessory
+    /// starts a little in from the window edge (past the traffic lights on
+    /// the left), so that inset, measured at the current width, is
+    /// subtracted.
+    private func updateToggleWidths(windowWidth: CGFloat? = nil) {
+        guard let window else { return }
+        let widths = layout(totalWidth: windowWidth ?? window.frame.width)
+        for (panel, toggle) in toggles {
+            let frame = toggle.view.convert(toggle.view.bounds, to: nil)
+            let inset = panel == .sidebar ? frame.minX : window.frame.width - frame.maxX
+            let panelWidth = panel == .sidebar ? widths.sidebar : widths.queue
+            toggle.view.frame.size.width = max(toggle.buttonWidth, panelWidth - inset)
+        }
     }
 
     /// The narrowest the main pane may be: wide enough for the toolbar to
-    /// show every item while a search field is focused and expanded (636
-    /// measured on Playlists and Liked Songs), so nothing moves into the
-    /// overflow menu.
+    /// show every item, so nothing moves into the overflow menu. With both
+    /// panels closed the toggles take part of it, which `searchFieldWidth`
+    /// allows for.
     static let mainMinimumWidth: CGFloat = 640
 
     /// The narrowest the window may be: the main pane plus the open panels.
@@ -104,6 +165,7 @@ final class MainWindow {
             if !opening { set(panel, visible: false) }
             animating = nil
             frozenMainWidth = nil
+            updateToggleWidths()
         }
     }
 
@@ -114,6 +176,7 @@ final class MainWindow {
         }
 
         UserDefaults.standard.set(visible, forKey: panel.defaultsKey)
+        updateToggleWidths()
     }
 
     /// Moves and resizes the window together, frame by frame. AppKit's own
@@ -126,9 +189,12 @@ final class MainWindow {
             let t = min(1, Date().timeIntervalSince(began) / Self.animationDuration)
             let eased = t < 0.5 ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2   // ease in-out
             func lerp(_ a: CGFloat, _ b: CGFloat) -> CGFloat { (a + (b - a) * eased).rounded() }
-            window.setFrame(NSRect(x: lerp(start.minX, target.minX), y: lerp(start.minY, target.minY),
-                                   width: lerp(start.width, target.width), height: lerp(start.height, target.height)),
-                            display: true)
+            let frame = NSRect(x: lerp(start.minX, target.minX), y: lerp(start.minY, target.minY),
+                               width: lerp(start.width, target.width), height: lerp(start.height, target.height))
+            // Sized before the frame changes so the title bar is drawn with
+            // the new widths in the same step as the window.
+            updateToggleWidths(windowWidth: frame.width)
+            window.setFrame(frame, display: true)
             if t >= 1 { return }
             try? await Task.sleep(for: .milliseconds(8))
         }
