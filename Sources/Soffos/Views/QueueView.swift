@@ -23,7 +23,7 @@ struct QueueView: View {
                 Spacer()
                 Button("Clear") { confirmClear = true }
                     .controlSize(.small)
-                    .disabled(sonos.queue.isEmpty)
+                    .disabled(sonos.queue.isEmpty || sonos.queueingTitle != nil)
                     .confirmationDialog("Clear the queue?", isPresented: $confirmClear) {
                         Button("Clear Queue", role: .destructive) { Task { await sonos.clearQueue() } }
                     }

@@ -224,7 +224,7 @@ struct MediaCard: View {
                 ZStack(alignment: .bottomTrailing) {
                     Artwork(url: imageURL, cornerRadius: circular ? 1000 : 8, placeholder: circular ? "music.mic" : "music.note")
                         .shadow(color: .black.opacity(hovering ? 0.25 : 0.1), radius: hovering ? 8 : 3, y: 2)
-                    if hovering, uri != nil, sonos.selectedGroup != nil {
+                    if hovering, uri != nil, sonos.selectedGroup != nil, sonos.queueingTitle == nil {
                         HStack(spacing: 6) {
                             cardButton("shuffle", help: "Shuffle") { await play(shuffled: true) }
                             cardButton("play.fill", help: "Play") { await play(shuffled: false) }

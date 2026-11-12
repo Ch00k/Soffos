@@ -157,20 +157,29 @@ struct ArtistDetailView: View {
             .padding(.bottom, 24)
         }
         .navigationTitle(name)
+        // Both tasks are cancelled when an album is opened over the page, and
+        // run again on the way back.
         .task(id: artistID) {
             do {
                 artist = try await spotify.api.artist(artistID)
+            } catch is CancellationError {
+            } catch let error as URLError where error.code == .cancelled {
             } catch {
                 spotify.lastError = error.localizedDescription
             }
         }
         // Spotify returns an artist's albums 10 at a time, so they're shown
-        // as each page arrives.
+        // as each page arrives. On a reload the shown albums stay until the
+        // pages pass them, so the grid doesn't shrink and rebuild.
         .task(id: artistID) {
             do {
-                _ = try await spotify.api.all(cap: 200, loaded: { albums = $0 }) {
+                albums = try await spotify.api.all(cap: 200, loaded: { loaded in
+                    if loaded.count > albums?.count ?? 0 { albums = loaded }
+                }) {
                     try await spotify.api.artistAlbums(artistID, offset: $0)
                 }
+            } catch is CancellationError {
+            } catch let error as URLError where error.code == .cancelled {
             } catch {
                 albums = albums ?? []
                 spotify.lastError = error.localizedDescription
