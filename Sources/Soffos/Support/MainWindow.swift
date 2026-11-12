@@ -64,18 +64,27 @@ final class MainWindow {
         // first layout, and they move when SwiftUI installs the toolbar,
         // which can happen after that.
         DispatchQueue.main.async { [weak self] in self?.updateToggleWidths() }
+        watchSearchFields(in: window.toolbar)
         toolbarInstallObserver = window.observe(\.toolbar) { [weak self] window, _ in
             MainActor.assumeIsolated {
                 window.layoutIfNeeded()
                 self?.updateToggleWidths()
+                self?.watchSearchFields(in: window.toolbar)
             }
         }
+    }
 
-        // SwiftUI adds a screen's search field to the toolbar when the
-        // screen appears.
-        window.toolbar?.items.forEach(Self.fixSearchFieldWidth)
+    /// Fixes the width of the toolbar's search fields, present and future:
+    /// SwiftUI adds a screen's search field to the toolbar when the screen
+    /// appears.
+    private func watchSearchFields(in toolbar: NSToolbar?) {
+        if let toolbarObserver { NotificationCenter.default.removeObserver(toolbarObserver) }
+        toolbarObserver = nil
+        guard let toolbar else { return }
+
+        toolbar.items.forEach(Self.fixSearchFieldWidth)
         toolbarObserver = NotificationCenter.default.addObserver(
-            forName: NSToolbar.willAddItemNotification, object: window.toolbar, queue: .main
+            forName: NSToolbar.willAddItemNotification, object: toolbar, queue: .main
         ) { note in
             guard let item = note.userInfo?["item"] as? NSToolbarItem else { return }
             MainActor.assumeIsolated { Self.fixSearchFieldWidth(item) }
